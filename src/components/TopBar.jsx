@@ -1,53 +1,51 @@
-export default function TopBar({
-  currentQuestion = 1,
-  totalQuestions = 5,
-  xp = 0,
-}) {
-  const progress = (currentQuestion / totalQuestions) * 100;
+import { motion } from 'framer-motion';
+import { getLevelInfo } from '../lib/leveling.js';
 
-  // Simple level logic
-  const getLevel = (xp) => {
-    if (xp < 50) return 1;
-    if (xp < 120) return 2;
-    if (xp < 200) return 3;
-    return 4;
-  };
-
-  const level = getLevel(xp);
+export default function TopBar({ currentIndex, total, xp }) {
+  const { level, progress } = getLevelInfo(xp);
+  const safeTotal = Math.max(1, total || 1);
+  const step = Math.min(currentIndex + 1, safeTotal);
+  const pct = Math.min(1, step / safeTotal);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-slate-950/50 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-4 py-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex items-center justify-between text-xs text-slate-300">
+            <span>
+              Question <span className="font-semibold text-slate-100">{step}</span> of{' '}
+              <span className="font-semibold text-slate-100">{safeTotal}</span>
+            </span>
+            <span className="hidden sm:inline">Participation XP • Neutral feedback</span>
+          </div>
 
-      {/* Level Badge */}
-      <div className="flex items-center gap-2">
-        <div className="w-10 h-10 flex items-center justify-center rounded-full bg-purple-100 text-purple-600 font-bold shadow-sm">
-          {level}
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <motion.div
+              className="h-full rounded-full bg-white/80"
+              initial={false}
+              animate={{ width: `${pct * 100}%` }}
+              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+            />
+          </div>
         </div>
-        <span className="text-sm text-gray-600 font-medium">
-          Level {level}
-        </span>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex flex-col items-end leading-tight">
+            <div className="text-[11px] text-slate-300">XP</div>
+            <div className="text-sm font-semibold">{xp}</div>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm">
+              {level}
+            </div>
+            <div className="hidden sm:flex flex-col leading-tight">
+              <div className="text-[11px] text-slate-300">Level</div>
+              <div className="text-sm font-semibold">{Math.round(progress * 100)}%</div>
+            </div>
+          </div>
+        </div>
       </div>
-
-      {/* Progress Bar */}
-      <div className="flex-1 mx-8">
-        <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-500 transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <div className="text-xs text-gray-400 mt-1 text-center">
-          Question {currentQuestion} of {totalQuestions}
-        </div>
-      </div>
-
-      {/* XP Counter */}
-      <div className="flex items-center gap-2">
-        <div className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl font-semibold shadow-sm">
-          ⚡ {xp} XP
-        </div>
-      </div>
-
-    </div>
+    </header>
   );
 }
