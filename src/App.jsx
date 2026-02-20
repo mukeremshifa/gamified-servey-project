@@ -1,116 +1,216 @@
-import { useState } from "react";
-import TopBar from "./components/TopBar";
-import RenderQuestion from "./components/RenderQuestion";
-import XPFloat from "./components/XPFloat";
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import CompletionScreen from './components/CompletionScreen.jsx';
+import FloatingToast from './components/FloatingToast.jsx';
+import RenderQuestion from './components/RenderQuestion.jsx';
+import TopBar from './components/TopBar.jsx';
+import { SURVEY, SURVEY_ID } from './data/survey.js';
+import { getNeutralFeedback } from './lib/neutralFeedback.js';
 
-function App() {
+const STORAGE_KEY = `gamifiedSurveyState:${SURVEY_ID}`;
 
+function isAnswerValid(question, value) {
+  if (value === undefined || value === null) return false;
+  switch (question.type) {
+    case 'text':
+      return String(value).trim().length > 0;
+    case 'rating':
+      return typeof value === 'number' && Number.isFinite(value) && value >= 1;
+    case 'slider':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'binary':
+      return typeof value === 'boolean';
+    case 'mcq':
+      return typeof value === 'string' && value.length > 0;
+    default:
+      return true;
+  }
+}
 
-  const survey = {
-  id: "s1",
-  title: "Customer Experience Survey",
-  questions: [
-    {
-      id: "q1",
-      type: "mcq",
-      text: "How satisfied are you with our service?",
-      options: [
-        { id: "a", label: "Very satisfied", xp: 10 },
-        { id: "b", label: "Neutral", xp: 10 },
-        { id: "c", label: "Not satisfied", xp: 10 },
-      ],
-    },
-    {
-      id: "q2",
-      type: "binary",
-      text: "Would you recommend us to a friend?",
-      options: [
-        { id: "yes", label: "Yes", xp: 10 },
-        { id: "no", label: "No", xp: 10 },
-      ],
-    },
-    {
-      id: "q3",
-      type: "rating",
-      text: "Rate your overall experience",
-      max: 5,
-      leftLabel: "Poor",
-      rightLabel: "Excellent",
-      xp: 15,
-    },
-  ],
-};
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.surveyId !== SURVEY_ID) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
+export default function App() {
+  const saved = useMemo(() => (typeof window !== 'undefined' ? loadState() : null), []);
 
-const [currentIndex, setCurrentIndex] = useState(0);
-  const [xp, setXp] = useState(0);
-  const [xpFloat, setXpFloat] = useState(null);
-  const [answered, setAnswered] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(saved?.currentIndex ?? 0);
+  const [xp, setXp] = useState(saved?.xp ?? 0);
+  const [answers, setAnswers] = useState(saved?.answers ?? {});
+  const [rewardedIds, setRewardedIds] = useState(() => {
+    // If someone clears storage mid-run, treat already-present answers as already rewarded.
+    const fromStorage = saved?.rewardedIds;
+    const fromAnswers = Object.keys(saved?.answers ?? {});
+    return new Set(fromStorage ?? fromAnswers);
+  });
+  const [toast, setToast] = useState(null);
 
-  const currentQuestion = survey.questions[currentIndex];
+  const total = SURVEY.length;
+  const isComplete = currentIndex >= total;
 
-  const handleAnswer = (answer) => {
-  const earnedXp = answer?.xp || currentQuestion.xp || 10;
+  const currentQuestion = useMemo(() => {
+    if (isComplete) return null;
+    return SURVEY[currentIndex];
+  }, [currentIndex, isComplete]);
 
-  setXp((prev) => prev + earnedXp);
-  setXpFloat(earnedXp);   // trigger animation
-  setAnswered(true);
-};
+  const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
+  const canGoNext = currentQuestion ? isAnswerValid(currentQuestion, currentAnswer) : false;
 
+  useEffect(() => {
+    // Persist progress (nice-to-have). Keeping it lightweight.
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          surveyId: SURVEY_ID,
+          currentIndex,
+          xp,
+          answers,
+          rewardedIds: Array.from(rewardedIds),
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }, [currentIndex, xp, answers, rewardedIds]);
 
-  const handleNext = () => {
-    if (currentIndex < survey.questions.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setAnswered(false);
-    } else {
-      alert("Survey Completed 🎉");
+  const awardXp = (amount) => {
+    setXp((prev) => prev + amount);
+    setToast({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      xpDelta: amount,
+      message: getNeutralFeedback(),
+    });
+  };
+
+  const handleAnswer = (questionId, value) => {
+    const question = SURVEY.find((q) => q.id === questionId);
+    if (!question) return;
+
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+
+    const alreadyRewarded = rewardedIds.has(questionId);
+    const validNow = isAnswerValid(question, value);
+
+    if (!alreadyRewarded && validNow) {
+      setRewardedIds((prev) => {
+        const next = new Set(prev);
+        next.add(questionId);
+        return next;
+      });
+      awardXp(question.xp ?? 25);
     }
   };
 
+  const handleNext = () => {
+    if (!currentQuestion) return;
+    if (!canGoNext) return;
 
+    if (currentIndex < total - 1) {
+      setCurrentIndex((i) => i + 1);
+      return;
+    }
 
+    // Completion bonus (progress-based, not answer-content-based)
+    const completionBonusId = '__completion_bonus__';
+    if (!rewardedIds.has(completionBonusId)) {
+      setRewardedIds((prev) => {
+        const next = new Set(prev);
+        next.add(completionBonusId);
+        return next;
+      });
+      awardXp(100);
+    }
+    setCurrentIndex(total);
+  };
+
+  const handleRestart = () => {
+    setCurrentIndex(0);
+    setXp(0);
+    setAnswers({});
+    setRewardedIds(new Set());
+    setToast(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   return (
-    <body className="w-screen h-screen bg-white grid place-items-center">
-      <main className="w-[90vw] h-[90vh] bg-gray-50 rounded-lg shadow-lg flex flex-col items-center justify-center relative overflow-hidden">
- <TopBar
-        currentQuestion={currentIndex + 1}
-        totalQuestions={survey.questions.length}
-        xp={xp}
-      />
-        <div className="w-full h-full flex items-center justify-center transition-all duration-500 ease-in-out">
-<RenderQuestion question={currentQuestion} onAnswer={handleAnswer} />
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <TopBar currentIndex={Math.min(currentIndex, total)} total={total} xp={xp} />
 
-          <div className="pb-10 flex justify-end w-full px-10">
-        <button
-          onClick={handleNext}
-          disabled={!answered}
-          className={`
-            px-8 py-3 rounded-xl font-semibold transition-all
-            ${
-              answered
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }
-          `}
-        >
-          Next
-        </button>
-      </div>
+      <FloatingToast toast={toast} onClear={() => setToast(null)} />
 
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-10 pt-6">
+        <AnimatePresence mode="wait" initial={false}>
+          {isComplete ? (
+            <motion.div
+              key="completion"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+            >
+              <CompletionScreen
+                xp={xp}
+                answers={answers}
+                questions={SURVEY}
+                onRestart={handleRestart}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={currentQuestion.id}
+              initial={{ opacity: 0, x: 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -18 }}
+              transition={{ duration: 0.22 }}
+              className="flex flex-1 flex-col"
+            >
+              <RenderQuestion
+                question={currentQuestion}
+                value={currentAnswer}
+                onAnswer={(val) => handleAnswer(currentQuestion.id, val)}
+              />
 
-      {xpFloat && (
-  <XPFloat
-    amount={xpFloat}
-    onDone={() => setXpFloat(null)}
-  />
-)}
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-300">
+                  <span className="hidden sm:inline">
+                    XP is earned for participation only — your choice doesn’t change rewards.
+                  </span>
+                </div>
 
-
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!canGoNext}
+                  className={
+                    'inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition ' +
+                    (canGoNext
+                      ? 'bg-white/90 text-slate-950 hover:bg-white'
+                      : 'cursor-not-allowed bg-white/10 text-slate-400')
+                  }
+                >
+                  Next
+                  <span aria-hidden className="text-base">
+                    →
+                  </span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
-    </body>
+    </div>
   );
 }
-
-export default App;
