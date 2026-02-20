@@ -1,19 +1,29 @@
-import MCQCard from "./MCQCard";
-import BinaryCard from "./BinaryCard";
-import RatingCard from "./RatingCard";
+import BinaryCard from './questions/BinaryCard.jsx';
+import MCQCard from './questions/MCQCard.jsx';
+import RatingCard from './questions/RatingCard.jsx';
+import SliderCard from './questions/SliderCard.jsx';
+import TextCard from './questions/TextCard.jsx';
 
-export default function QuestionRenderer({ question, onAnswer }) {
-  switch (question.type) {
-    case "mcq":
-      return <MCQCard question={question} onAnswer={onAnswer} />;
+const REGISTRY = {
+  mcq: MCQCard,
+  binary: BinaryCard,
+  rating: RatingCard,
+  text: TextCard,
+  slider: SliderCard,
+};
 
-    case "binary":
-      return <BinaryCard question={question} onAnswer={onAnswer} />;
-
-    case "rating":
-      return <RatingCard question={question} onAnswer={onAnswer} />;
-
-    default:
-      return <div>Unsupported question type</div>;
+export default function RenderQuestion({ question, value, onAnswer }) {
+  const Component = REGISTRY[question.type];
+  if (!Component) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="text-sm font-semibold">Unsupported question type</div>
+        <div className="mt-1 text-sm text-slate-300">
+          Type <span className="font-mono">{String(question.type)}</span> is not registered.
+        </div>
+      </div>
+    );
   }
+
+  return <Component question={question} value={value} onAnswer={onAnswer} />;
 }
