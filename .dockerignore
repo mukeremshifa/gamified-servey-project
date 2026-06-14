@@ -1,0 +1,28 @@
+# Dependencies and build output (reinstalled/rebuilt inside the image)
+node_modules
+dist
+dist-ssr
+
+# Git metadata
+.git
+.gitignore
+
+# Secrets / local env (never bake these into the image)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+
+# Docker files themselves
+Dockerfile
+.dockerignore
