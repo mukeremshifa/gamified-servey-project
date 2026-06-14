@@ -1,29 +1,40 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from '@eslint/js';
+import react from 'eslint-plugin-react';
+import hooks from 'eslint-plugin-react-hooks';
+import prettier from 'eslint-plugin-prettier';
+import globals from 'globals';
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default [
+  // Base JS config
+  js.configs.recommended,
+
   {
-    files: ['**/*.{js,jsx}'],
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    ignores: ['dist', 'node_modules'],
     languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
       },
     },
+    plugins: {
+      react,
+      'react-hooks': hooks,
+      prettier,
+    },
+    settings: {
+      react: { version: 'detect' },
+    },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      ...react.configs.recommended.rules,
+      ...hooks.configs.recommended.rules,
+
+      // React-specific cleanup
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
     },
   },
-])
+];
