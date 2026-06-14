@@ -2,12 +2,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import CompletionScreen from './components/CompletionScreen.jsx';
 import FloatingToast from './components/FloatingToast.jsx';
+import FunFactToast from './components/FunFactToast.jsx';
 import RenderQuestion from './components/RenderQuestion.jsx';
 import TopBar from './components/TopBar.jsx';
 import { SURVEY, SURVEY_ID } from './data/survey.js';
 import { getNeutralFeedback } from './lib/neutralFeedback.js';
+import { getFunFact } from './lib/funFactProvider.js';
 
 const STORAGE_KEY = `gamifiedSurveyState:${SURVEY_ID}`;
+const ENABLE_FUN_FACTS = true;
 
 function isAnswerValid(question, value) {
   if (value === undefined || value === null) return false;
@@ -46,12 +49,16 @@ export default function App() {
   const [xp, setXp] = useState(saved?.xp ?? 0);
   const [answers, setAnswers] = useState(saved?.answers ?? {});
   const [rewardedIds, setRewardedIds] = useState(() => {
-    // If someone clears storage mid-run, treat already-present answers as already rewarded.
     const fromStorage = saved?.rewardedIds;
     const fromAnswers = Object.keys(saved?.answers ?? {});
     return new Set(fromStorage ?? fromAnswers);
   });
+
   const [toast, setToast] = useState(null);
+
+  // ✅ fun fact state MUST be inside App
+  const [factByQuestionId, setFactByQuestionId] = useState(saved?.factByQuestionId ?? {});
+  const [factToast, setFactToast] = useState(null);
 
   const total = SURVEY.length;
   const isComplete = currentIndex >= total;
@@ -65,7 +72,6 @@ export default function App() {
   const canGoNext = currentQuestion ? isAnswerValid(currentQuestion, currentAnswer) : false;
 
   useEffect(() => {
-    // Persist progress (nice-to-have). Keeping it lightweight.
     try {
       localStorage.setItem(
         STORAGE_KEY,
@@ -75,12 +81,13 @@ export default function App() {
           xp,
           answers,
           rewardedIds: Array.from(rewardedIds),
+          factByQuestionId, // ✅ persist cached facts (optional but helpful)
         })
       );
     } catch {
       // ignore
     }
-  }, [currentIndex, xp, answers, rewardedIds]);
+  }, [currentIndex, xp, answers, rewardedIds, factByQuestionId]);
 
   const awardXp = (amount) => {
     setXp((prev) => prev + amount);
@@ -88,6 +95,39 @@ export default function App() {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       xpDelta: amount,
       message: getNeutralFeedback(),
+    });
+  };
+
+  // ✅ prefetch fact quietly (no UI), only using question context (not answer)
+  const prefetchFunFact = async (question) => {
+    if (!ENABLE_FUN_FACTS) return;
+    if (!question?.id) return;
+
+    // If already cached, skip
+    if (factByQuestionId[question.id]) return;
+
+    const fact = await getFunFact(question);
+    if (!fact) return;
+
+    // Protect against races
+    setFactByQuestionId((prev) => (prev[question.id] ? prev : { ...prev, [question.id]: fact }));
+  };
+
+  // ✅ show fact AFTER commit (we call this on Next)
+  const showFunFactToast = async (question) => {
+    if (!ENABLE_FUN_FACTS) return;
+    if (!question?.id) return;
+
+    const cached = factByQuestionId[question.id];
+    const fact = cached ?? (await getFunFact(question));
+    if (!fact) return;
+
+    if (!cached) setFactByQuestionId((prev) => ({ ...prev, [question.id]: fact }));
+
+    setFactToast({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title: fact.title ?? 'Fun fact',
+      text: fact.text,
     });
   };
 
@@ -100,13 +140,18 @@ export default function App() {
     const alreadyRewarded = rewardedIds.has(questionId);
     const validNow = isAnswerValid(question, value);
 
+    // Award XP once per question (unbiased)
     if (!alreadyRewarded && validNow) {
       setRewardedIds((prev) => {
         const next = new Set(prev);
         next.add(questionId);
         return next;
       });
+
       awardXp(question.xp ?? 25);
+
+      // ✅ prefetch AFTER the user has answered (but before Next)
+      void prefetchFunFact(question);
     }
   };
 
@@ -114,12 +159,14 @@ export default function App() {
     if (!currentQuestion) return;
     if (!canGoNext) return;
 
+    void showFunFactToast(currentQuestion);
+
     if (currentIndex < total - 1) {
       setCurrentIndex((i) => i + 1);
       return;
     }
 
-    // Completion bonus (progress-based, not answer-content-based)
+    // Completion bonus (not answer-based)
     const completionBonusId = '__completion_bonus__';
     if (!rewardedIds.has(completionBonusId)) {
       setRewardedIds((prev) => {
@@ -138,6 +185,11 @@ export default function App() {
     setAnswers({});
     setRewardedIds(new Set());
     setToast(null);
+
+    // ✅ reset fun fact state too
+    setFactByQuestionId({});
+    setFactToast(null);
+
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -150,6 +202,9 @@ export default function App() {
       <TopBar currentIndex={Math.min(currentIndex, total)} total={total} xp={xp} />
 
       <FloatingToast toast={toast} onClear={() => setToast(null)} />
+
+      
+      <FunFactToast toast={factToast} onClear={() => setFactToast(null)} durationMs={50000} />
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-10 pt-6">
         <AnimatePresence mode="wait" initial={false}>

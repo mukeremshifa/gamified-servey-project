@@ -12,6 +12,7 @@ export const SURVEY = [
     prompt: 'What’s your main reason for using a fitness app?',
     helper: 'Pick the option that’s closest. There are no right answers.',
     options: ['Build a habit', 'Stay motivated', 'Track progress', 'Train for an event'],
+    funFactTopic: 'survey_design',
   },
   {
     id: 'q_weekly',
@@ -21,6 +22,7 @@ export const SURVEY = [
     prompt: 'Do you track workouts at least once a week?',
     leftLabel: 'Not really',
     rightLabel: 'Yes',
+    funFactTopic: 'survey_design',
   },
   {
     id: 'q_satisfaction',
@@ -30,6 +32,7 @@ export const SURVEY = [
     prompt: 'How satisfied are you with your current routine?',
     helper: '1 = not satisfied, 5 = very satisfied',
     scale: 5,
+    funFactTopic: 'likert_scales',
   },
   {
     id: 'q_friction',
@@ -40,6 +43,7 @@ export const SURVEY = [
     helper: 'A short sentence is perfect.',
     placeholder: 'e.g., Faster logging, better reminders, less setup…',
     maxChars: 200,
+    funFactTopic: 'open_ended',
   },
   {
     id: 'q_minutes',
@@ -55,6 +59,7 @@ export const SURVEY = [
     leftLabel: '0',
     rightLabel: '120+',
     defaultValue: 30,
+    funFactTopic: 'sliders',
   },
   {
     id: 'q_feature',
@@ -64,6 +69,7 @@ export const SURVEY = [
     prompt: 'Which feature matters most to you right now?',
     helper: 'Choose one — we’ll use it to prioritize improvements.',
     options: ['Streaks & reminders', 'Workout plans', 'Nutrition tracking', 'Insights & trends'],
+    funFactTopic: 'prioritization',
   },
   {
     id: 'q_goal',
@@ -73,6 +79,7 @@ export const SURVEY = [
     prompt: 'Would you like help setting a weekly goal?',
     leftLabel: 'No thanks',
     rightLabel: 'Yes please',
+    funFactTopic: 'binary_questions',
   },
   {
     id: 'q_recommend',
@@ -82,5 +89,6 @@ export const SURVEY = [
     prompt: 'How likely are you to recommend this app to a friend?',
     helper: '1 = not likely, 5 = very likely',
     scale: 5,
+    funFactTopic: 'survey_design',
   },
 ];
