@@ -45,6 +45,20 @@ function loadState() {
 export default function App() {
   const saved = useMemo(() => (typeof window !== 'undefined' ? loadState() : null), []);
 
+  const getInitialTheme = () => {
+    if (typeof window === 'undefined') return 'dark';
+
+    const params = new URLSearchParams(window.location.search);
+    const queryTheme = params.get('theme');
+    if (queryTheme === 'light' || queryTheme === 'dark') return queryTheme;
+
+    const storedTheme = window.localStorage.getItem('surveyTheme');
+    if (storedTheme === 'light' || storedTheme === 'dark') return storedTheme;
+
+    return 'dark';
+  };
+
+  const [theme, setTheme] = useState(getInitialTheme);
   const [currentIndex, setCurrentIndex] = useState(saved?.currentIndex ?? 0);
   const [xp, setXp] = useState(saved?.xp ?? 0);
   const [answers, setAnswers] = useState(saved?.answers ?? {});
@@ -59,6 +73,16 @@ export default function App() {
   // ✅ fun fact state MUST be inside App
   const [factByQuestionId, setFactByQuestionId] = useState(saved?.factByQuestionId ?? {});
   const [factToast, setFactToast] = useState(null);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('surveyTheme', theme);
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('theme', theme);
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, [theme]);
 
   const total = SURVEY.length;
   const isComplete = currentIndex >= total;
@@ -197,14 +221,32 @@ export default function App() {
     }
   };
 
+  const backgroundClass =
+    theme === 'light'
+      ? 'min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-200 text-slate-900'
+      : 'min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100';
+
+  const secondaryTextClass = theme === 'light' ? 'text-slate-600' : 'text-slate-300';
+  const actionButtonClass =
+    theme === 'light'
+      ? 'bg-slate-900 text-white hover:bg-slate-800'
+      : 'bg-white/90 text-slate-950 hover:bg-white';
+  const mutedButtonClass =
+    theme === 'light' ? 'cursor-not-allowed bg-slate-200 text-slate-500' : 'cursor-not-allowed bg-white/10 text-slate-400';
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <TopBar currentIndex={Math.min(currentIndex, total)} total={total} xp={xp} />
+    <div className={backgroundClass}>
+      <TopBar
+        currentIndex={Math.min(currentIndex, total)}
+        total={total}
+        xp={xp}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => (current === 'light' ? 'dark' : 'light'))}
+      />
 
-      <FloatingToast toast={toast} onClear={() => setToast(null)} />
+      <FloatingToast toast={toast} onClear={() => setToast(null)} theme={theme} />
 
-      
-      <FunFactToast toast={factToast} onClear={() => setFactToast(null)} durationMs={50000} />
+      <FunFactToast toast={factToast} onClear={() => setFactToast(null)} durationMs={50000} theme={theme} />
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-10 pt-6">
         <AnimatePresence mode="wait" initial={false}>
@@ -221,6 +263,7 @@ export default function App() {
                 answers={answers}
                 questions={SURVEY}
                 onRestart={handleRestart}
+                theme={theme}
               />
             </motion.div>
           ) : (
@@ -236,10 +279,11 @@ export default function App() {
                 question={currentQuestion}
                 value={currentAnswer}
                 onAnswer={(val) => handleAnswer(currentQuestion.id, val)}
+                theme={theme}
               />
 
               <div className="mt-5 flex items-center justify-between gap-3">
-                <div className="text-xs text-slate-300">
+                <div className={`text-xs ${secondaryTextClass}`}>
                   <span className="hidden sm:inline">
                     XP is earned for participation only — your choice doesn’t change rewards.
                   </span>
@@ -251,9 +295,7 @@ export default function App() {
                   disabled={!canGoNext}
                   className={
                     'inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition ' +
-                    (canGoNext
-                      ? 'bg-white/90 text-slate-950 hover:bg-white'
-                      : 'cursor-not-allowed bg-white/10 text-slate-400')
+                    (canGoNext ? actionButtonClass : mutedButtonClass)
                   }
                 >
                   Next

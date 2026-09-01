@@ -1,14 +1,15 @@
 import QuestionShell from './QuestionShell.jsx';
 
-export default function RatingCard({ question, value, onAnswer }) {
+export default function RatingCard({ question, value, onAnswer, theme }) {
+  const isLight = theme === 'light';
   const scale = question.scale ?? 5;
 
   return (
-    <QuestionShell question={question}>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <QuestionShell question={question} theme={theme}>
+      <div className={'rounded-2xl border p-5 ' + (isLight ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-white/5')}>
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-slate-300">Low</div>
-          <div className="text-xs text-slate-300">High</div>
+          <div className={'text-xs ' + (isLight ? 'text-slate-600' : 'text-slate-300')}>Low</div>
+          <div className={'text-xs ' + (isLight ? 'text-slate-600' : 'text-slate-300')}>High</div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -22,8 +23,12 @@ export default function RatingCard({ question, value, onAnswer }) {
                 className={
                   'flex h-12 w-12 items-center justify-center rounded-2xl border text-xl transition ' +
                   (typeof value === 'number' && value === n
-                    ? 'border-white/30 bg-white/10'
-                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10')
+                    ? isLight
+                      ? 'border-slate-300 bg-slate-200'
+                      : 'border-white/30 bg-white/10'
+                    : isLight
+                      ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-100'
+                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10')
                 }
                 aria-label={`${n} of ${scale}`}
               >
@@ -35,10 +40,10 @@ export default function RatingCard({ question, value, onAnswer }) {
           })}
         </div>
 
-        <div className="mt-3 text-center text-xs text-slate-300">
+        <div className={'mt-3 text-center text-xs ' + (isLight ? 'text-slate-600' : 'text-slate-300')}>
           {typeof value === 'number' ? (
             <span>
-              Selected: <span className="font-semibold text-slate-100">{value}</span>
+              Selected: <span className={'font-semibold ' + (isLight ? 'text-slate-900' : 'text-slate-100')}>{value}</span>
             </span>
           ) : (
             <span>Select a rating to continue.</span>
